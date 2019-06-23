@@ -1,0 +1,10 @@
+[package]
+name = "serde_token"
+version = "0.0.1"
+authors = ["Sunny G <sunny.gonna@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.1.27"
+serde = "1.0"
+serde_bytes = "0.11"
