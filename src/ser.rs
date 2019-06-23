@@ -1,53 +1,49 @@
 //! Serializes a value into a __ of tokens
 
 use crate::{error::Error, Token};
-use futures::{sink::Sink, unsync::mpsc, AsyncSink};
-use serde::ser::{self, Serialize};
+use futures::{sink::Sink, AsyncSink};
+use serde::{
+    de,
+    ser::{self, Serialize},
+};
+use serde_transcode::transcode;
 
-///
-///
-/// example of some part of an IPLD selector
-/// ```rust
-/// let (token_sink, token_stream) = futures::unsync::mpsc::channel();
-/// let mut ser = Tokenizer(token_sink);
-///
-/// let json_str: &[u8] = r#"[1, "hello", {"A": false}]"#;
-/// let de = serde_json::Deserializer;
-///
-/// /* produces a stream of ...? */
-/// transcode(de, &mut ser);
-///
-/// /* reduce the stream into a future of a resolved value or RawDag */
-/// token_sink.map(|token| {
-///     format!("{:?}", token)
-/// });
-/// ```
-#[derive(Clone)]
-pub struct Tokenizer<'a>(mpsc::Sender<Token<'a>>);
+/// Deserializes...
+fn tokenize<'de, D, S>(d: D, sender: S) -> Result<(), Error>
+where
+    D: de::Deserializer<'de>,
+    S: Sink<SinkItem = Token<'de>, SinkError = Error>,
+{
+    let mut tokenizer = Tokenizer(sender);
+    transcode(d, &mut tokenizer)
+}
 
-impl<'a> Tokenizer<'a> {
+#[derive(Clone, Debug)]
+pub struct Tokenizer<'a, S: Sink<SinkItem = Token<'a>, SinkError = Error>>(S);
+
+impl<'a, S: Sink<SinkItem = Token<'a>, SinkError = Error>> Tokenizer<'a, S> {
     fn write_token(&mut self, token: Token<'a>) -> Result<(), Error> {
         self.0
             .start_send(token)
-            .map_err(|_| Error::TokenWrite(String::from("")))
+            .map_err(|_| Error::WriteToken(String::from("")))
             .and_then(|sink| match sink {
                 AsyncSink::Ready => Ok(()),
-                AsyncSink::NotReady(_) => Err(Error::TokenWrite(String::from(""))),
+                AsyncSink::NotReady(_) => Err(Error::WriteToken(String::from(""))),
             })
     }
 }
 
-impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
+impl<'a, 's: 'a, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::Serializer for &'s mut Tokenizer<'a, S> {
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = Compound<'a>;
-    type SerializeTuple = Compound<'a>;
-    type SerializeTupleStruct = Compound<'a>;
-    type SerializeTupleVariant = Compound<'a>;
-    type SerializeMap = Compound<'a>;
-    type SerializeStruct = Compound<'a>;
-    type SerializeStructVariant = Compound<'a>;
+    type SerializeSeq = Compound<'a, 's, S>;
+    type SerializeTuple = Compound<'a, 's, S>;
+    type SerializeTupleStruct = Compound<'a, 's, S>;
+    type SerializeTupleVariant = Compound<'a, 's, S>;
+    type SerializeMap = Compound<'a, 's, S>;
+    type SerializeStruct = Compound<'a, 's, S>;
+    type SerializeStructVariant = Compound<'a, 's, S>;
 
     fn serialize_bool(self, v: bool) -> Result<(), Error> {
         self.write_token(Token::Bool(v))?;
@@ -183,10 +179,10 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
         value.serialize(self)
     }
 
-    fn serialize_seq(self, len: Option<usize>) -> Result<Compound<'a>, Error> {
+    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Error> {
         self.write_token(Token::Seq { len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::SeqEnd,
         })
     }
@@ -194,7 +190,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Error> {
         self.write_token(Token::Tuple { len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::TupleEnd,
         })
     }
@@ -206,7 +202,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     ) -> Result<Self::SerializeTupleStruct, Error> {
         self.write_token(Token::TupleStruct { name, len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::TupleStructEnd,
         })
     }
@@ -220,7 +216,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     ) -> Result<Self::SerializeTupleVariant, Error> {
         self.write_token(Token::TupleVariant { name, variant, len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::TupleVariantEnd,
         })
     }
@@ -228,7 +224,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Error> {
         self.write_token(Token::Map { len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::MapEnd,
         })
     }
@@ -240,7 +236,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     ) -> Result<Self::SerializeStruct, Error> {
         self.write_token(Token::Struct { name, len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::StructEnd,
         })
     }
@@ -254,7 +250,7 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
     ) -> Result<Self::SerializeStructVariant, Error> {
         self.write_token(Token::StructVariant { name, variant, len })?;
         Ok(Compound {
-            ser: self.clone(),
+            ser: self,
             end: Token::StructVariantEnd,
         })
     }
@@ -265,19 +261,19 @@ impl<'s, 'a> ser::Serializer for &'s mut Tokenizer<'a> {
 }
 
 ///
-pub struct Compound<'a> {
-    ser: Tokenizer<'a>,
+pub struct Compound<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> {
+    ser: &'s mut Tokenizer<'a, S>,
     end: Token<'a>,
 }
 
-impl<'a> Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> Compound<'a, 's, S> {
     fn do_end(mut self) -> Result<(), Error> {
         self.ser.write_token(self.end)?;
         Ok(())
     }
 }
 
-impl<'a> ser::SerializeSeq for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeSeq for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -285,7 +281,7 @@ impl<'a> ser::SerializeSeq for Compound<'a> {
     where
         T: Serialize,
     {
-        value.serialize(&mut self.ser)
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Error> {
@@ -293,7 +289,7 @@ impl<'a> ser::SerializeSeq for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeTuple for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeTuple for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -301,7 +297,7 @@ impl<'a> ser::SerializeTuple for Compound<'a> {
     where
         T: Serialize,
     {
-        value.serialize(&mut self.ser)
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Error> {
@@ -309,7 +305,7 @@ impl<'a> ser::SerializeTuple for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeTupleStruct for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeTupleStruct for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -317,7 +313,7 @@ impl<'a> ser::SerializeTupleStruct for Compound<'a> {
     where
         T: Serialize,
     {
-        value.serialize(&mut self.ser)
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Error> {
@@ -325,7 +321,7 @@ impl<'a> ser::SerializeTupleStruct for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeTupleVariant for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -333,7 +329,7 @@ impl<'a> ser::SerializeTupleVariant for Compound<'a> {
     where
         T: Serialize,
     {
-        value.serialize(&mut self.ser)
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Error> {
@@ -341,7 +337,7 @@ impl<'a> ser::SerializeTupleVariant for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeMap for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeMap for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -349,14 +345,14 @@ impl<'a> ser::SerializeMap for Compound<'a> {
     where
         T: Serialize,
     {
-        key.serialize(&mut self.ser)
+        key.serialize(self.ser)
     }
 
     fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        value.serialize(&mut self.ser)
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Self::Error> {
@@ -364,7 +360,7 @@ impl<'a> ser::SerializeMap for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeStruct for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeStruct for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -376,8 +372,8 @@ impl<'a> ser::SerializeStruct for Compound<'a> {
     where
         T: Serialize,
     {
-        key.serialize(&mut self.ser)?;
-        value.serialize(&mut self.ser)
+        key.serialize(self.ser)?;
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Self::Error> {
@@ -385,7 +381,7 @@ impl<'a> ser::SerializeStruct for Compound<'a> {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for Compound<'a> {
+impl<'a, 's, S: Sink<SinkItem = Token<'a>, SinkError = Error>> ser::SerializeStructVariant for Compound<'a, 's, S> {
     type Ok = ();
     type Error = Error;
 
@@ -397,8 +393,8 @@ impl<'a> ser::SerializeStructVariant for Compound<'a> {
     where
         T: Serialize,
     {
-        key.serialize(&mut self.ser)?;
-        value.serialize(&mut self.ser)
+        key.serialize(self.ser)?;
+        value.serialize(self.ser)
     }
 
     fn end(self) -> Result<(), Self::Error> {
@@ -408,8 +404,18 @@ impl<'a> ser::SerializeStructVariant for Compound<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::{tokenize, Token};
+
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        // example of some part of an IPLD selector
+        let json_str = r#"[1, 3, "hello"]"#;
+        let mut de = serde_json::de::Deserializer::from_str(json_str);
+
+        let (token_sink, token_stream) = futures::unsync::mpsc::unbounded::<Token>();
+        tokenize(&mut de, token_sink);
+
+        /* reduce the stream into a future of a resolved value or RawDag */
+        token_stream.map(|token| format!("{:?}", token));
     }
 }
