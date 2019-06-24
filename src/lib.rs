@@ -1,4 +1,4 @@
-//! Utility for [transcoding] a [Serde] [deserializer] into a [sink] of `Token`s.
+//! Utility for [transcoding] a [Serde] [deserializer] into a [`futures::Sink`] of `Token`s.
 //!
 //! [transcoding]: https://docs.serde.rs/serde_transcode/index.html
 //! [Serde]: https://serde.rs

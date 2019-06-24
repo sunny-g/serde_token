@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/serde_token/badge.svg)](https://docs.rs/serde_token)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 
-`serde_token` provides a utility for [transcoding](https://docs.serde.rs/serde_transcode/index.html) a [Serde](https://serde.rs) [deserializer](https://docs.serde.rs/serde/trait.Deserializer.html) into a [sink](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html) of `Token`s.
+`serde_token` provides a utility for [transcoding](https://docs.serde.rs/serde_transcode/index.html) a [Serde](https://serde.rs) [deserializer](https://docs.serde.rs/serde/trait.Deserializer.html) into a [`futures::Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html) of `Token`s.
 
 ## Installation
 

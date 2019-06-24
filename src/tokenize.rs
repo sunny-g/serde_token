@@ -6,7 +6,7 @@ use serde::{
 };
 use serde_transcode::transcode;
 
-/// Transcodes a deserializer into a [`Sink`] of `Token`s.
+/// Transcodes a deserializer into a [`futures::Sink`] of `Token`s.
 ///
 /// NOTE: currenty uses `unsafe` twice: for coercing an `'de` lifetime on the deserialized and borrowed `&[u8]` or `&str`. I believe this is safe because the `Tokenizer` is only used here, and always with an associated [`Deserializer<'de>`].
 ///
