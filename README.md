@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/serde_token/badge.svg)](https://docs.rs/serde_token)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 
-`serde_token` provides a utility for [transcoding](https://docs.serde.rs/serde_transcode/index.html) a [Serde](https://serde.rs) [deserializer](https://docs.serde.rs/serde/trait.Deserializer.html) into a [`futures::Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html) of `Token`s.
+`serde_token` provides a utility function `tokenize` for [transcoding](https://docs.serde.rs/serde_transcode/index.html) a [Serde](https://serde.rs) [deserializer](https://docs.serde.rs/serde/trait.Deserializer.html) into a [`futures::Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html) of `Token`s.
 
 ## Installation
 
@@ -52,6 +52,7 @@ assert_eq!(expected, vec![
 ## TODO
 
 - [ ] look into how we use the [`Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html):
+  - should probably periodically `poll_complete` in case the sink is bounded
   - add support for back-pressure
   - handle `Async::NotReady` appropriately
 - [ ] provide better guarads around our use of `unsafe`

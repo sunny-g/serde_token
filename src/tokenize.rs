@@ -8,17 +8,17 @@ use serde_transcode::transcode;
 
 /// Transcodes a deserializer into a [`futures::Sink`] of `Token`s.
 ///
-/// NOTE: currenty uses `unsafe` twice: for coercing an `'de` lifetime on the deserialized and borrowed `&[u8]` or `&str`. I believe this is safe because the `Tokenizer` is only used here, and always with an associated [`Deserializer<'de>`].
+/// *TODO*: currenty uses `unsafe` twice: both for coercing a `'de` lifetime on the deserialized and borrowed `&[u8]` or `&str`. I believe this is safe because the `Tokenizer` is only used within this function, and is thus always paired with an accompanying [`Deserializer<'de>`].
 ///
-/// [`Sink`]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
+/// [`futures::Sink`]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
 /// [`Deserializer<'de>`]: https://docs.serde.rs/serde/trait.Deserializer.html
 pub fn tokenize<'de, D, S>(deserializer: D, sink: S) -> Result<(), Error>
 where
     D: de::Deserializer<'de>,
     S: Sink<SinkItem = Token<'de>>,
 {
-    let mut ser = Tokenizer(sink);
-    transcode(deserializer, &mut ser)
+    let mut tokenizer = Tokenizer(sink);
+    transcode(deserializer, &mut tokenizer)
 }
 
 #[derive(Clone, Debug)]

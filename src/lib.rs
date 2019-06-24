@@ -3,7 +3,7 @@
 //! [transcoding]: https://docs.serde.rs/serde_transcode/index.html
 //! [Serde]: https://serde.rs
 //! [deserializer]: https://docs.serde.rs/serde/trait.Deserializer.html
-//! [sink]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
+//! [`futures::Sink`]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
 //!
 //! # Example:
 //!
@@ -91,8 +91,14 @@ pub enum Token<'a> {
     /// A borrowed `str`.
     Str(&'a str),
 
+    /// An owned `String`.
+    String(String),
+
     /// A borrowed `[u8]`.
     Bytes(&'a [u8]),
+
+    /// A owned `Vec<u8>`.
+    ByteBuf(Vec<u8>),
 
     /// A serialized `Option<T>` containing none.
     None,
@@ -106,31 +112,31 @@ pub enum Token<'a> {
     /// A serialized unit struct of the given name.
     UnitStruct {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
     },
 
     /// A unit variant of an enum.
     UnitVariant {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
-        variant: &'a str,
+        variant: &'static str,
     },
 
     /// The header to a serialized newtype struct of the given name.
     NewtypeStruct {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
     },
 
     /// The header to a newtype variant of an enum.
     NewtypeVariant {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
-        variant: &'a str,
+        variant: &'static str,
     },
 
     /// The header to a sequence.
@@ -154,7 +160,7 @@ pub enum Token<'a> {
     /// The header to a tuple struct.
     TupleStruct {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
         len: usize,
@@ -166,10 +172,10 @@ pub enum Token<'a> {
     /// The header to a tuple variant of an enum.
     TupleVariant {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
-        variant: &'a str,
+        variant: &'static str,
 
         #[doc(hidden)]
         len: usize,
@@ -190,7 +196,7 @@ pub enum Token<'a> {
     /// The header of a struct.
     Struct {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
         len: usize,
@@ -202,10 +208,10 @@ pub enum Token<'a> {
     /// The header of a struct variant of an enum.
     StructVariant {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
 
         #[doc(hidden)]
-        variant: &'a str,
+        variant: &'static str,
 
         #[doc(hidden)]
         len: usize,
@@ -217,6 +223,6 @@ pub enum Token<'a> {
     /// The header to an enum of the given name.
     Enum {
         #[doc(hidden)]
-        name: &'a str,
+        name: &'static str,
     },
 }
