@@ -42,9 +42,19 @@ assert_eq!(expected, vec![
 ])
 ```
 
+## How It Works (and Limitations)
+
+`tokenize` takes in a [`serde::Deserializer`](https://docs.serde.rs/serde/trait.Deserializer.html), which will walk thru the encoded input, and a [`futures::Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html), which will be sent the deserialized tokens. Two things to note:
+
+1. Under the hood, we use [`serde_transcode`](https://docs.serde.rs/serde_transcode/index.html) to directly map the given `Deserializer` to the `Token` `Serializer`. However, `serde_transcode` "drives" the transcoding process with [`deserialize_any`](https://docs.serde.rs/serde/trait.Deserializer.html#tymethod.deserialize_any), meaning that encoding formats that require type hints cannot be tokenized without an intermediary step (not provided by this library).
+2. Because of the aforementioned limitation, the `Tokenizer` struct, which is private and can only be used with the provided `Deserializer`, uses `unsafe` twice to `serialize` tokens that borrow their underlying data from the `Deserializer` (`Token::Str(&'de str)` and `Token::Bytes(&'de [u8])`). However, this should be safe because the tokens share the same lifetime as the provided `Deserializer` and should thus expire no later than the `Deserializer` itself.
+
 ## TODO
 
-- [ ] look into handling [`Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html) sending better (i.e. support back-pressure)
+- [ ] look into how we use the [`Sink`](https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html):
+  - add support for back-pressure
+  - handle `Async::NotReady` appropriately
+- [ ] provide better guarads around our use of `unsafe`
 
 ## Changelog
 
