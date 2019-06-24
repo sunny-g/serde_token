@@ -1,8 +1,41 @@
-mod de;
+//! Utility for [transcoding] a [deserializer] into a sink of `Token`s.
+//!
+//! [transcoding]: https://docs.serde.rs/serde_transcode/index.html
+//! [deserializer]: https://docs.serde.rs/serde/trait.Deserializer.html
+//!
+//! # Example:
+//!
+//! ```no_run
+//! use serde_token::tokenize;
+//!
+//! let json_str = r#" [1, "hello", 3] "#;
+//! let expected = vec![
+//!     Token::Seq { len: None },
+//!     Token::U64(1),
+//!     Token::Str("hello"),
+//!     Token::U64(3),
+//!     Token::SeqEnd,
+//! ];
+//!
+//! let (token_sink, token_stream) = std::unsync::mpsc::unbounded::<Token>();
+//! let mut de = serde_json::de::Deserializer::from_str(json_str);
+//!
+//! tokenize(&mut de, token_sink).unwrap();
+//! let actual = token_stream.collect().wait().unwrap();
+//! assert_eq!(expected, actual)
+//! ```
+#![warn(missing_docs)]
+#![doc(html_root_url = "https://docs.rs/serde_token/0.0.1")]
+
 mod error;
 mod ser;
 
-#[derive(Clone, Debug)]
+pub use ser::tokenize;
+
+/// A token corresponding to one of the types defined in the [Serde data model].
+///
+/// [Serde data model]: https://serde.rs/data-model.html
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token<'a> {
     /// A serialized `bool`.
     Bool(bool),
@@ -46,14 +79,11 @@ pub enum Token<'a> {
     /// A serialized `char`.
     Char(char),
 
-    /// A serialized `str`.
+    /// A borrowed `str`.
     Str(&'a str),
 
-    /// A borrowed `str`.
-    BorrowedStr(&'a str),
-
     /// A borrowed `[u8]`.
-    BorrowedBytes(&'a [u8]),
+    Bytes(&'a [u8]),
 
     /// A serialized `Option<T>` containing none.
     None,
@@ -65,39 +95,74 @@ pub enum Token<'a> {
     Unit,
 
     /// A serialized unit struct of the given name.
-    UnitStruct { name: &'a str },
+    UnitStruct {
+        #[doc(hidden)]
+        name: &'a str,
+    },
 
     /// A unit variant of an enum.
-    UnitVariant { name: &'a str, variant: &'a str },
+    UnitVariant {
+        #[doc(hidden)]
+        name: &'a str,
+
+        #[doc(hidden)]
+        variant: &'a str,
+    },
 
     /// The header to a serialized newtype struct of the given name.
-    NewtypeStruct { name: &'a str },
+    NewtypeStruct {
+        #[doc(hidden)]
+        name: &'a str,
+    },
 
     /// The header to a newtype variant of an enum.
-    NewtypeVariant { name: &'a str, variant: &'a str },
+    NewtypeVariant {
+        #[doc(hidden)]
+        name: &'a str,
+
+        #[doc(hidden)]
+        variant: &'a str,
+    },
 
     /// The header to a sequence.
-    Seq { len: Option<usize> },
+    Seq {
+        #[doc(hidden)]
+        len: Option<usize>,
+    },
 
     /// An indicator of the end of a sequence.
     SeqEnd,
 
     /// The header to a tuple.
-    Tuple { len: usize },
+    Tuple {
+        #[doc(hidden)]
+        len: usize,
+    },
 
     /// An indicator of the end of a tuple.
     TupleEnd,
 
     /// The header to a tuple struct.
-    TupleStruct { name: &'a str, len: usize },
+    TupleStruct {
+        #[doc(hidden)]
+        name: &'a str,
+
+        #[doc(hidden)]
+        len: usize,
+    },
 
     /// An indicator of the end of a tuple struct.
     TupleStructEnd,
 
     /// The header to a tuple variant of an enum.
     TupleVariant {
+        #[doc(hidden)]
         name: &'a str,
+
+        #[doc(hidden)]
         variant: &'a str,
+
+        #[doc(hidden)]
         len: usize,
     },
 
@@ -105,21 +170,35 @@ pub enum Token<'a> {
     TupleVariantEnd,
 
     /// The header to a map.
-    Map { len: Option<usize> },
+    Map {
+        #[doc(hidden)]
+        len: Option<usize>,
+    },
 
     /// An indicator of the end of a map.
     MapEnd,
 
     /// The header of a struct.
-    Struct { name: &'a str, len: usize },
+    Struct {
+        #[doc(hidden)]
+        name: &'a str,
+
+        #[doc(hidden)]
+        len: usize,
+    },
 
     /// An indicator of the end of a struct.
     StructEnd,
 
     /// The header of a struct variant of an enum.
     StructVariant {
+        #[doc(hidden)]
         name: &'a str,
+
+        #[doc(hidden)]
         variant: &'a str,
+
+        #[doc(hidden)]
         len: usize,
     },
 
@@ -127,5 +206,8 @@ pub enum Token<'a> {
     StructVariantEnd,
 
     /// The header to an enum of the given name.
-    Enum { name: &'a str },
+    Enum {
+        #[doc(hidden)]
+        name: &'a str,
+    },
 }
