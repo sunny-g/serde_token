@@ -1,36 +1,45 @@
-//! Utility for [transcoding] a [deserializer] into a sink of `Token`s.
+//! Utility for [transcoding] a [Serde] [deserializer] into a [sink] of `Token`s.
 //!
 //! [transcoding]: https://docs.serde.rs/serde_transcode/index.html
+//! [Serde]: https://serde.rs
 //! [deserializer]: https://docs.serde.rs/serde/trait.Deserializer.html
+//! [sink]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
 //!
 //! # Example:
 //!
-//! ```no_run
-//! use serde_token::tokenize;
+//! ```
+//! use futures::{unsync::mpsc::unbounded, Future, Sink, Stream};
+//! use serde_json::Deserializer;
+//! use serde_token::{tokenize, Token};
 //!
-//! let json_str = r#" [1, "hello", 3] "#;
-//! let expected = vec![
+//! let mut de = Deserializer::from_str(r#" [ {"a":false}, "hello", 3 ] "#);
+//! let (token_sink, token_stream) = unbounded::<Token>();
+//!
+//! tokenize(&mut de, token_sink).unwrap();
+//!
+//! let expected = token_stream.collect().wait().unwrap();
+//! assert_eq!(expected, vec![
 //!     Token::Seq { len: None },
-//!     Token::U64(1),
+//!     Token::Map { len: None },
+//!     Token::Str("a"),
+//!     Token::Bool(false),
+//!     Token::MapEnd,
 //!     Token::Str("hello"),
 //!     Token::U64(3),
 //!     Token::SeqEnd,
-//! ];
-//!
-//! let (token_sink, token_stream) = std::unsync::mpsc::unbounded::<Token>();
-//! let mut de = serde_json::de::Deserializer::from_str(json_str);
-//!
-//! tokenize(&mut de, token_sink).unwrap();
-//! let actual = token_stream.collect().wait().unwrap();
-//! assert_eq!(expected, actual)
+//! ])
 //! ```
 #![warn(missing_docs)]
 #![doc(html_root_url = "https://docs.rs/serde_token/0.0.1")]
 
 mod error;
-mod ser;
+mod tokenize;
 
-pub use ser::tokenize;
+#[cfg(test)]
+mod test;
+
+pub use error::Error;
+pub use tokenize::tokenize;
 
 /// A token corresponding to one of the types defined in the [Serde data model].
 ///

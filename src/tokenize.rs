@@ -1,12 +1,17 @@
 use crate::{error::Error, Token};
-use futures::{sink::Sink, AsyncSink};
+use futures::sink::Sink;
 use serde::{
     de,
     ser::{self, Serialize},
 };
 use serde_transcode::transcode;
 
-/// Transcodes a deserializer into a `Sink` of `Token`s.
+/// Transcodes a deserializer into a [`Sink`] of `Token`s.
+///
+/// NOTE: currenty uses `unsafe` twice: for coercing an `'de` lifetime on the deserialized and borrowed `&[u8]` or `&str`. I believe this is safe because the `Tokenizer` is only used here, and always with an associated [`Deserializer<'de>`].
+///
+/// [`Sink`]: https://docs.rs/futures/0.1.27/futures/sink/trait.Sink.html
+/// [`Deserializer<'de>`]: https://docs.serde.rs/serde/trait.Deserializer.html
 pub fn tokenize<'de, D, S>(deserializer: D, sink: S) -> Result<(), Error>
 where
     D: de::Deserializer<'de>,
@@ -21,12 +26,13 @@ struct Tokenizer<'a, S: Sink<SinkItem = Token<'a>>>(S);
 
 impl<'a, S: Sink<SinkItem = Token<'a>>> Tokenizer<'a, S> {
     fn write_token(&mut self, token: Token<'a>) -> Result<(), Error> {
+        use futures::AsyncSink;
         self.0
             .start_send(token)
-            .map_err(|_| Error::WriteToken(String::from("")))
+            .map_err(|_| Error::TokenSinkError)
             .and_then(|sink| match sink {
                 AsyncSink::Ready => Ok(()),
-                AsyncSink::NotReady(_) => Err(Error::WriteToken(String::from(""))),
+                AsyncSink::NotReady(_) => Err(Error::TokenSinkNotReadyError),
             })
     }
 }
@@ -456,23 +462,5 @@ where
 
     fn end(self) -> Result<(), Self::Error> {
         self.do_end()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{tokenize, Token};
-
-    #[test]
-    fn it_works() {
-        // example of some part of an IPLD selector
-        let json_str = r#"[1, 3, "hello"]"#;
-        let mut de = serde_json::de::Deserializer::from_str(json_str);
-
-        let (token_sink, token_stream) = futures::unsync::mpsc::unbounded::<Token>();
-        tokenize(&mut de, token_sink);
-
-        /* reduce the stream into a future of a resolved value or RawDag */
-        token_stream.map(|token| format!("{:?}", token));
     }
 }
